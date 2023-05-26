@@ -1,0 +1,5 @@
+isort==5.12.0
+pip-chill==1.0.3
+pytz==2023.3
+tinydb==4.7.1
+watchdog==3.0.0
