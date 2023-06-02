@@ -155,6 +155,12 @@ cython_debug/
 # VSCode
 .vscode/
 
+# RSA keys
+*.pem
+
+# file signatures
+*.bin
+
 # Other dot files
 .*
 !.gitignore
