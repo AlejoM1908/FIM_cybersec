@@ -1,3 +1,4 @@
+import getpass
 import os
 import re
 
@@ -129,7 +130,7 @@ class TerminalInterface:
         
         return user_input in ['y', 'yes']
 
-    def stringInput(self, input_msg:str, *, clear:bool = True, print_static:bool = False, safe:bool = False, correct:bool = False) -> str:
+    def stringInput(self, input_msg:str, *, clear:bool = True, print_static:bool = False, safe:bool = False, correct:bool = False, hidden:bool = False) -> str:
         '''
             Gets a string input from the user, it only can contain letters, numbers, spaces and the following special characters: . , - _ @
 
@@ -142,7 +143,7 @@ class TerminalInterface:
             Returns the user input if it's valid, throws a value error if it's invalid
         '''
         if clear: self._clearTerminal(print_static=print_static)
-        user_input = input(f'{YELLOW}?{CYAN} (string) {WHITE}{input_msg}')
+        user_input = input(f'{YELLOW}?{CYAN} (string) {WHITE}{input_msg}') if not hidden else getpass.getpass(f'{YELLOW}?{CYAN} (string) {WHITE}{input_msg}')
 
         # Checking for invalid characters, avoid innecesary checks if safe or correct is set to False
         if safe or correct:
@@ -281,7 +282,39 @@ class TerminalInterface:
             elif user_input == 2: break
 
         return array
-    
+
+    def insertPassword(self, message:str, *, min_length:int = 8, max_length:int = None, confirm:bool = True) -> str:
+        '''
+            Inserts a password from the user
+
+            @param {str} message - The message to display to the user
+            @param {int} min_length - The minimum length of the password (default: 8)
+            @param {int} max_length - The maximum length of the password (default: None)
+            @param {bool} confirm - Whether to ask the user to confirm the password (default: True)
+
+            Returns the inserted password
+        '''
+
+        while True:
+            password:str = self.stringInput(message, clear=False, hidden=True)
+
+            # Check the password length
+            if len(password) < min_length:
+                self.print(f'{RED}! {YELLOW}La contraseña debe tener al menos {min_length} caracteres{WHITE}')
+                continue
+            elif max_length and len(password) > max_length:
+                self.print(f'{RED}! {YELLOW}La contraseña debe tener menos de {max_length} caracteres{WHITE}')
+                continue
+
+            # Confirm the password if needed
+            if confirm:
+                confirm_password:str = self.stringInput('Confirme la contraseña: ', clear=False, hidden=True)
+                if confirm_password != password:
+                    self.print(f'{RED}! {YELLOW}Las contraseñas no coinciden{WHITE}')
+                    continue
+
+            return password
+
     def editableMap(self, map:dict = None) -> dict:
         '''
             Displays a menu to the user to edit a map of options
