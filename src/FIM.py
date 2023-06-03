@@ -64,7 +64,6 @@ class FIM():
         # Save the required environment variables to the .env file
         self._saveEnv('KEYS_PATH', path)
         self._saveEnv('PASSPHRASE', self._interface.insertPassword('Ingrese la contraseña para las llaves RSA: ', confirm=True))
-        self._saveEnv('VALIDATION_TEST', 'Hello World')
 
         self._rsa.setPassphrase(self._env['PASSPHRASE'])
         self.private, self.public = self._rsa.generateKeyPair()
@@ -75,9 +74,6 @@ class FIM():
 
         with open(f'{self._env["KEYS_PATH"]}/public.pem', 'wb') as f:
             f.write(self.public)
-
-        with open(f'{self._env["KEYS_PATH"]}/validation.txt', 'wb') as f:
-            f.write(self._rsa.cypher(self._env['VALIDATION_TEST'].encode('utf-8'), self.public))
 
         self.new_keys = True
 
@@ -168,7 +164,7 @@ class FIM():
             Show the main menu
         '''
         options:list = ['Visualizar archivos/directorios en seguimiento', 'Comenzar seguimiento', 'Salir']
-        option = self._interface.generateMenu('Menú principal', options, clear=False, returnable=False)
+        option = self._interface.generateMenu('Menú principal', options, returnable=False, print_static=True)
 
         while True:
             if option == 0:

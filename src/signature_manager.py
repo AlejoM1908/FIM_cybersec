@@ -47,7 +47,7 @@ class SignatureManager:
 
         return public_key
     
-    def _serializeKey(self, key:rsa.RSAPrivateKey | rsa.RSAPublicKey, *, is_private:bool = False) -> bytes:
+    def _serializeKey(self, key: rsa.RSAPrivateKey | rsa.RSAPublicKey, *, is_private:bool = False) -> bytes:
         '''
             This method is responsible for serializing the key.
 
@@ -55,20 +55,27 @@ class SignatureManager:
             @param {bool} is_private: If the key is private or not.
 
             Return the serialized key, if it is private, it will be encrypted as well.
+
+            @raise {TypeError}: If the key is not a private or public key.
         '''
         if is_private:
             encryption_algo = serialization.BestAvailableEncryption(self._passphrase) if self._passphrase is not None else serialization.NoEncryption()
 
-            key_bytes = key.private_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PrivateFormat.PKCS8,
-                encryption_algorithm=encryption_algo
+            if isinstance(key, rsa.RSAPrivateKey):
+                key_bytes = key.private_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PrivateFormat.PKCS8,
+                    encryption_algorithm=encryption_algo
+                )
+            else: raise TypeError('The key must be a private or public key.'
             )
         else: 
-            key_bytes = key.public_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PublicFormat.SubjectPublicKeyInfo
-            )
+            if isinstance(key, rsa.RSAPublicKey):
+                key_bytes = key.public_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PublicFormat.SubjectPublicKeyInfo
+                )
+            else: raise TypeError('The key must be a private or public key.')
 
         return key_bytes
     
@@ -84,16 +91,14 @@ class SignatureManager:
             @raise {ValueError}: If the key doesn't have a valid format.
         '''
         if is_private:
-            key = serialization.load_pem_private_key(
+            return serialization.load_pem_private_key(
                 key_bytes,
                 password=self._passphrase,
             )
         else:
-            key = serialization.load_pem_public_key(
+            return serialization.load_pem_public_key(
                 key_bytes
             )
-
-        return key
 
     def _calculateFileHash(self, path:str) -> bytes:
         '''
@@ -169,7 +174,7 @@ class SignatureManager:
             Return if the public key is related to the private key.
         '''
         try:
-            test_message = [string.ascii_letters[random.randint(0, len(string.ascii_letters) - 1)] for _ in range(40)]
+            test_message = ''.join([string.ascii_letters[random.randint(0, len(string.ascii_letters) - 1)] for _ in range(40)])
 
             secret = self._cypher(bytes(test_message, 'utf-8'), public_key)
             message = self._decypher(secret, private_key)
@@ -237,8 +242,9 @@ class SignatureManager:
 
         try:
             public.verify(signature, path_hash, padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH), hashes.SHA256())
+            
+            return True
         except:
             return False
         
-        return True
     

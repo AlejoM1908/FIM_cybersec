@@ -13,12 +13,25 @@ class TerminalInterface:
         self._static_messages = []
         self._current_location = os.getcwd()
 
+    def _generateDivider(self, *, length:int = 35, char:str = '=') -> str:
+        '''
+            Generates a divider
+
+            @param {int} length - The length of the divider
+            @param {str} char - The char to use in the divider
+
+            Returns the divider
+        '''
+        return char * length
+
     def _printStaticMessages (self) -> None:
         '''
             Prints all the static messages for the application
         '''
         for message in self._static_messages:
             print(f'{CYAN}... {WHITE}{message}')
+
+        print(self._generateDivider())
 
     def _calculateTableWidth(self, list:list, matrix:list) -> list[int]:
         '''

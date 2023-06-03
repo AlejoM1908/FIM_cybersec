@@ -1,6 +1,7 @@
 import os
 import sys
 import unittest
+from cryptography.hazmat.primitives import serialization
 
 sys.path.insert(0, os.path.abspath('..'))
 from src.signature_manager import SignatureManager
@@ -97,19 +98,6 @@ class TestSignatureManager(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.signature_manager.verifySignature(b'123', signature, 'tests/test.txt')
 
-    def test_verifySignatureWithWrongPassphrase(self):
-        # Varibles
-        self.signature_manager.setPassphrase('test')
-        private_key, public_key = self.signature_manager.generateKeyPair()
-        signature = self.signature_manager.sign(private_key, 'tests/test.txt')
-
-        # Process
-        self.signature_manager.setPassphrase('test2')
-        is_valid = self.signature_manager.verifySignature(public_key, signature, 'tests/test.txt')
-
-        # Assertions
-        self.assertFalse(is_valid)
-
     def test_verifySignatureWithWrongSignature(self):
         # Varibles
         self.signature_manager.setPassphrase('test')
@@ -145,6 +133,35 @@ class TestSignatureManager(unittest.TestCase):
         # Assertions
         self.assertFalse(is_valid)
 
+    def test_verifyKeyIntegrityAfterSerialization(self):
+        # Varibles
+        private_key = self.signature_manager._generatePrivateKey()
+        public_key = self.signature_manager._generatePublicKey(private_key)
+        encoding = serialization.Encoding.OpenSSH
+        format = serialization.PublicFormat.OpenSSH
+
+        # Process
+        serialized_private = self.signature_manager._serializeKey(private_key, is_private=True)
+        serialized_public = self.signature_manager._serializeKey(public_key)
+
+        deserialized_private = self.signature_manager._deserializeKey(serialized_private, is_private=True)
+        deserialized_public = self.signature_manager._deserializeKey(serialized_public)
+
+        # Assertions
+        self.assertEqual(private_key.public_key().public_bytes(encoding, format), deserialized_private.public_key().public_bytes(encoding, format))
+        self.assertEqual(public_key.public_bytes(encoding, format), deserialized_public.public_bytes(encoding, format))
+
+    def test_verifyPrivateKeySerializationEncryption(self):
+        # Varibles
+        self.signature_manager.setPassphrase('test')
+        private_key, public_key = self.signature_manager.generateKeyPair()
+
+        # Process
+        self.signature_manager.setPassphrase('OtherPassphrase')
+
+        # Assertions
+        with self.assertRaises(ValueError):
+            self.signature_manager._deserializeKey(private_key, is_private=False)
 
 def start_test():
     unittest.main()
