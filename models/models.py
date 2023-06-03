@@ -1,7 +1,9 @@
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
+
 from src.colors.color import *
+
 
 class LogType(Enum):
     ADDITION = "ADDITION"

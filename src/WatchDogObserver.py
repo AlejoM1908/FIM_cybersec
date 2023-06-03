@@ -1,10 +1,12 @@
-import time
 import os
-from watchdog.observers import Observer
-from SignsWatchDog import FileChangeHandler
-from cryptography.hazmat.primitives import serialization
+import time
+
 from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
+from watchdog.observers import Observer
+
+from SignsWatchDog import FileChangeHandler
 
 # Ruta del archivo donde se guarda la clave privada en formato PEM
 private_key_path = "private_key.pem"

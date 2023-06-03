@@ -1,6 +1,7 @@
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
+
 class PathObserver(FileSystemEventHandler):
     '''
     PathObserver is a class that observes the changes to the given paths in track.
