@@ -18,6 +18,7 @@ class FIM():
         self._interface = TerminalInterface()
         self._rsa = SignatureManager()
         self._env = dotenv_values('.env')
+
         self.new_keys = False
 
     def _saveEnv(self, env_name:str,  value:str) -> None:
@@ -92,6 +93,8 @@ class FIM():
             path = self._env['DB_PATH']
         
         self._db = TinyDBManager(path)
+        self._tracked_paths = self._db.getAll()
+
         self._interface.print('Base de datos conectada correctamente', static=True)
 
     def _loadRSAKeys(self) -> None:
@@ -116,44 +119,95 @@ class FIM():
 
         self._interface.print('Llaves RSA cargadas correctamente', static=True)
 
+    def _addPath(self, *, start_path:File = None) -> None:
+        '''
+            Add a new path to the database
+
+            @param {File} start_path - The path to start the search in the file explorer
+
+            @return {File} - The path that was added
+        '''
+        if start_path is None:
+            local_path = os.getcwd()
+            start_path = File(name=os.path.basename(local_path), path=local_path, type=(not os.path.isdir(local_path)), signed=False)
+
+        path = self._interface.fileExplorer(text='Seleccione una ruta para agregar' ,path=start_path.path)[0]
+        path = File(name=os.path.basename(path), path=path, type=(not os.path.isdir(path)), signed=False)
+
+        if path not in self._tracked_paths:
+            doc_id = self._db.saveData(path, is_file=True)
+            path.id = doc_id
+            self._tracked_paths.append(path)
+            self._interface.print('Ruta agregada correctamente')
+
+        return path
+
+    def _removePath(self, *, message:str = None) -> File:
+        '''
+            Remove a path from the database
+
+            @return {File} - The path that was removed
+        '''
+        if message is None: message = 'Seleccione una ruta para eliminar: '
+        selection:int = self._interface.generateMenu(message, self._tracked_paths, returnable=True)
+        
+        if selection == -1: return None
+
+        try:
+            path = self._tracked_paths[selection]
+            self._db.deleteData(path.id, is_file=True)
+            self._tracked_paths.remove(path)
+
+            if path.signed:
+                sign_id:int = self._db.getByParameter('path', path.path)[0]['id']
+                self._db.deleteData(sign_id, is_file=False)
+
+            self._interface.print('Ruta eliminada correctamente')
+
+            return path
+        except:
+            self._interface.print('Ocurrió un error al eliminar la ruta')
+            return None
+        
+    def _updatePath(self) -> None:
+        '''
+            Update a path from the database
+
+            @return {File} - The path that was updated
+        '''
+        path = self._removePath(message='Seleccione una ruta para actualizar: ')
+        if path is None: return None
+
+        if os.path.exists(path.path):
+            self._addPath(start_path=path)
+            self._interface.print('Ruta actualizada correctamente')
+
     def _managePaths(self) -> None:
         '''
             Manage the paths that require to be managed
         '''
-        paths:list = self._db.getAll()
-        options:list = ['Agregar nueva ruta', 'Eliminar ruta', 'Regresar']
-        
         while True:
-            if len(paths) == 0:
-                explorer = self._interface.fileExplorer(text='Seleccione una ruta')
+            if len(self._tracked_paths) == 0: options:list = ['Agregar nueva ruta']
+            else : options:list = ['Agregar nueva ruta', 'Eliminar ruta', 'Actualizar ruta']
+            
+            self._interface.printList(self._tracked_paths, clear=True, enumerate_options=False)
+            option = self._interface.generateMenu('\nQue desea hacer?', options, clear=False, print_static=True)
 
-                paths.append(File(name=os.path.basename(explorer[0]), path=explorer[0], type=explorer[1]))
-                continue
+            if option == -1: break
 
-            self._interface.printList(paths, clear=True, enumerate_options=False)
-            option = self._interface.generateMenu('\nQue desea hacer?', options, clear=False, returnable=False)
-
-            if option == 0:
-                explorer = self._interface.fileExplorer(text='Seleccione una ruta')[0]
-                
-                path = File(name=os.path.basename(explorer), path=explorer, type=explorer[1])
-                if path not in paths: paths.append(path)
-                # ToDo: add the new file signature to the database
+            elif option == 0:
+                self._addPath()
 
             elif option == 1:
-                option = self._interface.generateMenu('Seleccione una ruta para eliminar', paths, returnable=False)
-                paths.pop(option)
-                # ToDo: remove the file signature from the database
+                self._removePath()
 
             elif option == 2:
-                self.paths = paths
-                break
+                self._updatePath()
 
     def _checkIntegrity(self) -> None:
         '''
             Check the integrity of the files
         '''
-
         # ToDo: Load the file signatures from the database
         
         # Todo: Load the files paths to watchdog, if chages detected, generate a log and save it to the database
@@ -164,9 +218,10 @@ class FIM():
             Show the main menu
         '''
         options:list = ['Visualizar archivos/directorios en seguimiento', 'Comenzar seguimiento', 'Salir']
-        option = self._interface.generateMenu('Menú principal', options, returnable=False, print_static=True)
 
         while True:
+            option = self._interface.generateMenu('Menú principal', options, returnable=False, print_static=True)
+
             if option == 0:
                 self._managePaths()
             elif option == 1:

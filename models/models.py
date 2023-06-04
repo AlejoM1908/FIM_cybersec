@@ -55,7 +55,8 @@ class File:
     id:Optional[int] = field(default=None)
     name:str
     path:str
-    type:str 
+    type:str
+    signed:bool = field(default=False)
 
     def toDict(self) -> dict:
         '''
@@ -64,7 +65,8 @@ class File:
         return {
             'name': self.name,
             'path': self.path,
-            'type': self.type
+            'type': self.type,
+            'signed': self.signed
         }
     
     def setId(self, id:int) -> None:
@@ -84,4 +86,5 @@ class File:
             Return a string representation of the File object
         '''
         type_tag = f'{PURPLE if self.type == 1 else GREEN}({"Archivo" if self.type == 1 else "Directorio"}){WHITE}'
-        return f'{self.name} - {type_tag}'
+        sign_tag = f'{RED if not self.signed else GREEN}({"No firmado" if not self.signed else "Firmado"}){WHITE}'
+        return f'{self.name} - {type_tag} - {sign_tag}'

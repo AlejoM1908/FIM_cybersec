@@ -91,8 +91,8 @@ class TerminalInterface:
             
             Returns None
         '''
-        if not items: return
         if clear: self._clearTerminal()
+        if not items: return
 
         for index, item in enumerate(items):
             print(f'{YELLOW}{index}. {WHITE}{item}' if enumerate_options else item, end=end)
@@ -203,7 +203,6 @@ class TerminalInterface:
             try:
                 user_input = self.intInput("Seleccione una opción: ", max=len(options) - 1 + movement, clear=False)
             except ValueError:
-                if not clear: raise ValueError('Invalid input')
                 error = True
                 continue
 
@@ -364,7 +363,7 @@ class TerminalInterface:
 
         return map
 
-    def fileExplorer(self, *, text:str = None, extensions:str = None, only_directories:bool = False, print_static:bool = False) -> list:
+    def fileExplorer(self, *, text:str = None, path:str = None, extensions:str = None, only_directories:bool = False, print_static:bool = False) -> list:
         '''
             Generate a file system explorer, if a file is selected the path of the file is returned automatically, else wait for the user to select a directory manually
             The explorer add two options to the menu that all always first and second: 0 end the search and return the selected directory, 1 return to the parent directory
@@ -377,7 +376,9 @@ class TerminalInterface:
 
             Returns the path of the directory or file selected by the user, and a number indicating if the selected path is a directory (0) or a file (1)
         '''
-        location:str = [self._current_location, 0]
+        if path is None: location:str = [self._current_location, 0]
+        else: location:str = [path, 0]
+
         if extensions is None: extensions:list = []
 
         while True:

@@ -33,7 +33,7 @@ class TinyDBManager:
 
             Returns a File or Log object
         '''
-        if type(data['type']) == int: return File(**data)
+        if type(data['type']) == bool: return File(**data)
         else: return Log(**data)
 
 
