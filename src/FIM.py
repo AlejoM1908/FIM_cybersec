@@ -1,12 +1,15 @@
 import os
+import base64
+from datetime import datetime
 
 from dotenv import dotenv_values
 
-from models.models import File, Log
+from models.models import File, Log, Signature
 
 from .cli_terminal import TerminalInterface
 from .signature_manager import SignatureManager
 from .tinydb_controller import TinyDBManager
+from .path_observer import start_observer
 
 
 class FIM():
@@ -93,7 +96,7 @@ class FIM():
             path = self._env['DB_PATH']
         
         self._db = TinyDBManager(path)
-        self._tracked_paths = self._db.getAll()
+        self._tracked_paths = self._db.getAll(is_file=True)
 
         self._interface.print('Base de datos conectada correctamente', static=True)
 
@@ -117,6 +120,7 @@ class FIM():
         if not self._rsa.validKeyPair(self.private, self.public):
             self._generateRSAKeys('Las llaves RSA no son válidas, creando nuevas llaves, ¿Dónde desea crearlas?')
 
+        self._rsa.setKeyPair(self.private, self.public)
         self._interface.print('Llaves RSA cargadas correctamente', static=True)
 
     def _addPath(self, *, start_path:File = None) -> None:
@@ -159,8 +163,8 @@ class FIM():
             self._tracked_paths.remove(path)
 
             if path.signed:
-                sign_id:int = self._db.getByParameter('path', path.path)[0]['id']
-                self._db.deleteData(sign_id, is_file=False)
+                sign_id:int = self._db.getByParameter('path', path.path, is_signature=True)[0]['id']
+                self._db.deleteData(sign_id, is_signature=True)
 
             self._interface.print('Ruta eliminada correctamente')
 
@@ -204,14 +208,70 @@ class FIM():
             elif option == 2:
                 self._updatePath()
 
+    def _signFiles(self, files:list[File]) -> None:
+        '''
+            Sign the files
+
+            @param {list} files - The files to sign
+        '''
+        for file in files:
+            signature = base64.b64encode(self._rsa.sign(file.path, is_directory=not file.type)).decode('ascii')
+            date_now = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+
+            self._db.saveData(Signature(signature=signature, date=date_now, path=file.path), is_signature=True)
+            file.signed = True
+            self._db.updateData(file, is_file=True)
+
+    def _checkSigns(self, files:list[File]) -> None:
+        '''
+            Check the signs of the files
+
+            @param {list} files - The files to check
+        '''
+        for file in files:
+            try:
+                sign_id:int = self._db.getByParameter('path', file.path, is_signature=True)[0]['id']
+                signature:bytes = base64.b64decode(self._db.getOne(sign_id, is_signature=True)['signature'].encode('ascii'))
+            except:
+                self._interface.print(f'No se encontró la firma del archivo >> {file.shortStr()}', static=True)
+                self._signFiles([file])
+                self._interface.print(f'Se ha firmado el archivo >> {file.shortStr()} correctamente', static=True)
+                continue
+
+            if not self._rsa.verifySignature(signature, file.path, is_directory=not file.type):
+                self._interface.print(f'La firma del archivo {file.shortStr()} no es válida', static=True)
+                self._interface.print('Firmando nuevamente...')
+                self._signFiles([file])
+                self._interface.print('Firma actualizada correctamente')
+            else:
+                self._interface.print(f'La firma del archivo {file.shortStr()} es válida')
+
     def _checkIntegrity(self) -> None:
         '''
             Check the integrity of the files
         '''
-        # ToDo: Load the file signatures from the database
-        
-        # Todo: Load the files paths to watchdog, if chages detected, generate a log and save it to the database
+        if self.new_keys: unsigned_files:list = self._tracked_paths
+        else: unsigned_files:list = [file for file in self._tracked_paths if not file.signed]
 
+        signed_files:list = list(set(self._tracked_paths) - set(unsigned_files))
+
+        if len(unsigned_files) != 0:
+            self._interface.print('Se encontraron archivos sin firmar, firmando...', static=True)
+            self._signFiles(unsigned_files)
+            self._interface.print('Archivos firmados correctamente', static=True)
+        else:
+            self._interface.print('No se encontraron archivos sin firmar, verificando firmas...', static=True)
+            self._checkSigns(signed_files)
+            self._interface.print('Firmas verificadas correctamente', static=True)
+
+        # Todo: Load the files paths to watchdog, if chages detected, generate a log and save it to the database
+        self._interface.print('Comenzando seguimiento de archivos...', static=True)
+        
+        try:
+            start_observer([path.path for path in self._tracked_paths])
+        except FileNotFoundError:
+            self._interface.print('Ocurrió un error al comenzar el seguimiento de archivos', static=True)
+            return
 
     def _mainMenu(self) -> None:
         '''

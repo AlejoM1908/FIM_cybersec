@@ -20,6 +20,8 @@ class SignatureManager:
             @param {bool} use_passphrase: If the passphrase should be used or not.
         '''
         self._passphrase = None
+        self._private_key = None
+        self._public_key = None
 
     def _generatePrivateKey(self) -> rsa.RSAPrivateKey:
         '''
@@ -130,9 +132,12 @@ class SignatureManager:
         '''
         hasher = hashlib.sha256()
 
-        for root, _, files in os.walk(path):
-            for file in files:
-                hasher.update(self._calculateFileHash(os.path.join(root, file)))
+        for root, _, paths in os.walk(path):
+            for path in paths:
+                if os.path.isdir(os.path.join(root, path)):
+                    hasher.update(self._calculateDirectoryHash(os.path.join(root, path)))
+                else:
+                    hasher.update(self._calculateFileHash(os.path.join(root, path)))
 
         return hasher.digest()
     
@@ -163,6 +168,25 @@ class SignatureManager:
         decypher = private.decrypt(data, padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None))
 
         return decypher
+
+    def setPassphrase(self, passphrase:str) -> None:
+        '''
+            This method is responsible for setting the passphrase.
+
+            @param {str} passphrase: The passphrase to set.
+        '''
+        if passphrase is None: self. _passphrase = None
+        else: self._passphrase = bytes(passphrase, 'utf-8')
+
+    def setKeyPair(self, private_key:bytes, public_key:bytes) -> None:
+        '''
+            This method is responsible for setting the key pair.
+
+            @param {bytes} private_key: The private key to set.
+            @param {bytes} public_key: The public key to set.
+        '''
+        self._private_key = private_key
+        self._public_key = public_key
     
     def validKeyPair(self, private_key:bytes, public_key:bytes) -> bool:
         '''
@@ -182,15 +206,6 @@ class SignatureManager:
             return message == bytes(test_message, 'utf-8')
         except:
             return False
-    
-    def setPassphrase(self, passphrase:str) -> None:
-        '''
-            This method is responsible for setting the passphrase.
-
-            @param {str} passphrase: The passphrase to set.
-        '''
-        if passphrase is None: self. _passphrase = None
-        else: self._passphrase = bytes(passphrase, 'utf-8')
 
     def generateKeyPair(self) -> Tuple[bytes, bytes]:
         '''
@@ -203,7 +218,7 @@ class SignatureManager:
 
         return self._serializeKey(private_key, is_private=True), self._serializeKey(public_key)
 
-    def sign(self, private_key:bytes, file_path:bytes, *, is_directory:bool = False) -> bytes:
+    def sign(self, file_path:bytes, *, is_directory:bool = False) -> bytes:
         '''
             This method is responsible for signing the file or directory in track.
 
@@ -215,7 +230,7 @@ class SignatureManager:
 
             @raise {FileNotFoundError}: If the file or directory does not exist.
         '''
-        private = self._deserializeKey(private_key, is_private=True)
+        private = self._deserializeKey(self._private_key, is_private=True)
 
         path_hash = self._calculateDirectoryHash(file_path) if is_directory else self._calculateFileHash(file_path)
 
@@ -223,12 +238,11 @@ class SignatureManager:
 
         return signature
 
-    def verifySignature(self, public_key:str, signature:str, file_path:str, *, is_directory:bool = False) -> bool:
+    def verifySignature(self, signature:bytes, file_path:str, *, is_directory:bool = False) -> bool:
         '''
             This method is responsible for verifying the signature of the file or directory in track.
 
-            @param {str} public_key: The public key to verify the signature.
-            @param {str} signature: The signature to verify.
+            @param {bytes} signature: The signature to verify.
             @param {str} file_path: The path of the file or directory to verify.
             @param {bool} is_directory: If the path is a directory or not.
 
@@ -236,7 +250,7 @@ class SignatureManager:
 
             @raise {FileNotFoundError}: If the file or directory does not exist.
         '''
-        public = self._deserializeKey(public_key)
+        public = self._deserializeKey(self._public_key)
 
         path_hash = self._calculateDirectoryHash(file_path) if is_directory else self._calculateFileHash(file_path)
 

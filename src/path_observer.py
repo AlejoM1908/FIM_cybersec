@@ -1,6 +1,6 @@
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
-
+import os
 
 class PathObserver(FileSystemEventHandler):
     '''
@@ -33,23 +33,27 @@ class PathObserver(FileSystemEventHandler):
 
 
 
-def start_observer(path):
+def start_observer(paths:list[str]):
     '''
     This function is responsible for starting the observer.
     '''
-    observer = Observer()
-    event_handler = PathObserver(path)
-    observer.schedule(event_handler, path, recursive=True)
-    observer.start()
-    
-    try:
-        while True:
-            # Keep the observer running
-            pass
-    except KeyboardInterrupt:
-        observer.stop()
+    for path in paths:
+        if not os.path.exists(path):
+            raise FileNotFoundError(f'Path {path} does not exist.')
+        
+        observer = Observer()
+        event_handler = PathObserver(path)
+        observer.schedule(event_handler, path, recursive=True)
+        observer.start()
+        
+        try:
+            while True:
+                # Keep the observer running
+                pass
+        except KeyboardInterrupt:
+            observer.stop()
 
-    observer.join()
+        observer.join()
 
 # Example usage
 if __name__ == "__main__":

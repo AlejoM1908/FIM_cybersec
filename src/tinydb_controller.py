@@ -1,6 +1,7 @@
 from tinydb import Query, TinyDB
 
-from models.models import File, Log
+from typing import Union
+from models.models import File, Log, Signature
 
 
 class TinyDBManager:
@@ -15,17 +16,32 @@ class TinyDBManager:
         '''
         self._connectDB(path)
 
+    def _xor(self, *args:bool) -> bool:
+        '''
+            non odd parity XOR operation
+
+            @param {*args} args - The arguments to apply the XOR operation
+
+            Returns a bool
+        '''
+        result:int = 0
+
+        for arg in args[0]:
+            if arg: result += 1
+
+        return result == 1
+
     def _connectDB(self, path:str) -> None:
         '''
             Connect to the database
 
             @param {str} path - The path of the database
         '''
+        tables:list = ['files', 'logs', 'signatures']
         self._db = TinyDB(path)
-        self._files = self._db.table('files')
-        self._logs = self._db.table('logs')
+        self._tables= {table: self._db.table(table) for table in tables}
 
-    def _dataFromJSON(self, data:dict) -> File | Log:
+    def _dataFromJSON(self, data:dict) -> Union[File, Log, Signature]:
         '''
             Convert a data from JSON to File or Log
 
@@ -33,27 +49,39 @@ class TinyDBManager:
 
             Returns a File or Log object
         '''
-        if type(data['type']) == bool: return File(**data)
-        else: return Log(**data)
+        if 'signature' in data:
+            return Signature(**data)
+        elif type(data['type']) == str:
+            return Log(**data)
+        else:
+            return File(**data)
 
-
-    def _dataToJSON(self, data:File | Log) -> dict:
+    def _dataToJSON(self, data:File | Log | Signature) -> dict:
         '''
             Convert a data from File or Log to JSON
 
-            @param {File | Log} data - The data to convert
+            @param {File | Log | Signature} data - The data to convert to JSON format
 
             Returns a dict object
         '''
         return data.toDict()
     
-    def getAll(self, *, is_file = True) -> list[File | Log]:
+    def getAll(self, *, is_file = False, is_log = False, is_signature = False) -> list[Union[File, Log, Signature]]:
         '''
             Get all the data stored in the database
 
-            Returns a list with the data stored in the database
+            @param {bool} is_file - If the data to get is a file
+            @param {bool} is_log - If the data to get is a log
+            @param {bool} is_signature - If the data to get is a signature
+
+            Returns a list with the data formated as File, Log or Signature objects
         '''
-        table = self._files if is_file else self._logs
+        if not self._xor([is_file, is_log, is_signature]): return None
+
+        if is_file: table = self._tables['files']
+        elif is_log: table = self._tables['logs']
+        elif is_signature: table = self._tables['signatures']
+
         documents:list = table.all()
 
         for document in documents:
@@ -61,32 +89,46 @@ class TinyDBManager:
 
         return [self._dataFromJSON(document) for document in documents]
     
-    def getOne(self, data_id:int, *, is_file = True) -> File | Log:
+    def getOne(self, data_id:int, *, is_file = False, is_log = False, is_signature = False) -> Union[File, Log, Signature]:
         '''
             Get the data with the given id
 
-            @param {File | Log} type - The type of data to get
             @param {int} data_id - The id of the data to get
+            @param {bool} is_file - If the data to get is a file
+            @param {bool} is_log - If the data to get is a log
+            @param {bool} is_signature - If the data to get is a signature
 
-            Returns a dictionary with the data
+            Returns a dictionary with the data formated as File, Log or Signature objects
         '''
-        table = self._files if is_file else self._logs
+        if not self._xor([is_file, is_log, is_signature]): return None
+
+        if is_file: table = self._tables['files']
+        elif is_log: table = self._tables['logs']
+        elif is_signature: table = self._tables['signatures'] 
+
         query:dict = table.get(doc_id=data_id)
         query['id'] = data_id
         return self._dataFromJSON(query)
     
-    def getByParameter(self, parameter:str, value:str, *, is_file = True) -> list[File | Log]:
+    def getByParameter(self, parameter:str, value:str, *, is_file = False, is_log = False, is_signature = False) -> list[Union[File, Log, Signature]]:
         '''
             Get the data that have the given parameter with the given value
 
-            @param {File | Log} type - The type of data to get
-            @param {str} parameter - The parameter to filter
-            @param {str} value - The value to filter
+            @param {str} parameter - The parameter to search
+            @param {str} value - The value of the parameter to search
+            @param {bool} is_file - If the data to get is a file
+            @param {bool} is_log - If the data to get is a log
+            @param {bool} is_signature - If the data to get is a signature
 
-            Returns a list with the data that match the filter
+            Returns a list with the data formated as File, Log or Signature objects
         '''
+        if not self._xor([is_file, is_log, is_signature]): return None
+
+        if is_file: table = self._tables['files']
+        elif is_log: table = self._tables['logs']
+        elif is_signature: table = self._tables['signatures']
+
         query = Query()
-        table = self._files if is_file else self._logs
         documents:list = table.search(query[parameter] == value)
 
         for document in documents:
@@ -94,34 +136,56 @@ class TinyDBManager:
 
         return [self._dataFromJSON(document) for document in documents]
     
-    def saveData(self, data:File | Log, *, is_file = True) -> int:
+    def saveData(self, data:File | Log | Signature, *, is_file = False, is_log = False, is_signature = False) -> int:
         '''
             Save a new data in the database
 
-            @param {File | Log} type - The type of data to save
-            @param {File | Log} data - The data object to ve to saved
+            @param {File | Log | Signature} data - The data to save
+            @param {bool} is_file - If the data to save is a file
+            @param {bool} is_log - If the data to save is a log
+            @param {bool} is_signature - If the data to save is a signature
 
-            Returns the id of the new data
+            Returns the id of the data saved
         '''
-        table = self._files if is_file else self._logs
+        if not self._xor([is_file, is_log, is_signature]): return None
+
+        if is_file: table = self._tables['files']
+        elif is_log: table = self._tables['logs']
+        elif is_signature: table = self._tables['signatures']
+
         return table.insert(self._dataToJSON(data))
-    
-    def updateData(self, data:File | Log, *, is_file = True) -> None:
+
+    def updateData(self, data:File | Log | Signature, *, is_file = False, is_log = False, is_signature = False) -> None:       
         '''
             Update a data in the database
 
-            @param {File | Log} type - The type of data to update
-            @param {File | Log} data - The data object to ve to updated
-        '''
-        table = self._files if is_file else self._logs
-        table.update(self._dataToJSON(data), doc_ids=[data.id])
+            @param {File | Log | Signature} data - The data to update
+            @param {bool} is_file - If the data to update is a file
+            @param {bool} is_log - If the data to update is a log
+            @param {bool} is_signature - If the data to update is a signature
 
-    def deleteData(self, data_id:int, *, is_file = True) -> None:
+            Returns the id of the data updated
+        '''
+        if not self._xor([is_file, is_log, is_signature]): return None
+
+        if is_file: table = self._tables['files']
+        elif is_log: table = self._tables['logs']
+        elif is_signature: table = self._tables['signatures']
+
+        test = table.update(self._dataToJSON(data), doc_ids=[data.id])
+        print(test)
+
+    def deleteData(self, data_id:int, *, is_file = False, is_log = False, is_signature = False) -> None:
         '''
             Delete a data in the database
 
             @param {File | Log} type - The type of data to delete
             @param {int} data_id - The id of the data to delete
         '''
-        table = self._files if is_file else self._logs
+        if self._xor([is_file, is_log, is_signature]): return None
+
+        if is_file: table = self._tables['files']
+        elif is_log: table = self._tables['logs']
+        elif is_signature: table = self._tables['signatures']
+        
         table.remove(doc_ids=[data_id])
